@@ -100,7 +100,6 @@ const pdf = await getDocument({ data: typedArray }).promise;
           <div className="rounded-md  bg-white">
             <div className="p-6 bg-white rounded-lg shadow-lg border border-gray-300">
               <h2 className="text-xl font-bold text-gray-700 mb-4">Upload File (PDF)</h2>
-
               <input
                 type="file"
                 accept="application/pdf"
@@ -389,6 +388,29 @@ const pdf = await getDocument({ data: typedArray }).promise;
           )}
         </p>
       </div>
+
+      
+
+ 
+
+      <div className="p-4 bg-gray-100 rounded-md shadow-md">
+  <h2 className="text-lg font-semibold">HTML Preview</h2>
+  
+
+  {/* JSON Output Preview */}
+  <div className="mt-6 p-4 bg-white rounded-md shadow-md">
+    <h2 className="text-lg font-semibold">JSON Data</h2>
+    <pre className="border p-3 rounded-md bg-gray-50 text-gray-700 whitespace-pre-wrap">
+      {JSON.stringify(selectedTags, null, 2)}
+    </pre>
+  </div>
+</div>
+
+
+
+
+
+
     </div>
   );
 };
