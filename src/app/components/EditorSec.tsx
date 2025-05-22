@@ -120,7 +120,7 @@ const pdf = await getDocument({ data: typedArray }).promise;
         {/* Right Column - HTML Preview */}
         <div className="space-y-4">
           <div className="p-4 bg-gray-100 rounded-md shadow-md">
-            <h2 className="text-lg font-semibold mb-4">HTML Preview</h2>
+            <h2 className="text-lg font-semibold mb-4">Filing Summary</h2>
             <div className="border p-4 rounded-md bg-white text-gray-700">
               <p>
                 <strong>Company Name:</strong>{" "}
