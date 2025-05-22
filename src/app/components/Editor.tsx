@@ -56,14 +56,22 @@ const RichTextEditor = () => {
       </div>
     </div>
   
-
     <div className="p-4 bg-gray-100 rounded-md shadow-md">
-      <h2 className="text-lg font-semibold">HTML Preview</h2>
-      <pre className="border p-3 rounded-md bg-white text-gray-700 whitespace-pre-wrap">
-  {JSON.stringify(value, null, 2)}
-</pre>
+  <h2 className="text-lg font-semibold">HTML Preview</h2>
+  <div className="border p-3 rounded-md bg-white text-gray-700 whitespace-pre-wrap">
+    {value.map((node, index) => {
+      if ('children' in node) {  
+        return (
+          <p key={index}>
+            {node.children.map((child) => 'text' in child ? child.text : "").join("")}
+          </p>
+        );
+      }
+      return null;
+    })}
+  </div>
+</div>
 
-    </div>
   </div>
   
   );
