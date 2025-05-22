@@ -4,9 +4,9 @@ import { Descendant, createEditor, Transforms } from "slate";
 import { Editable, ReactEditor, Slate, withReact } from "slate-react";
 import { useState, useMemo } from "react";
 
-// Define types for Slate.js
+// Define Slate.js custom types
 type CustomElement = { type: "paragraph"; children: CustomText[] };
-type CustomText = { text: string };
+type CustomText = { text: string; url?: string };
 
 declare module "slate" {
   interface CustomTypes {
