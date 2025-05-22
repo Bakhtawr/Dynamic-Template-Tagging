@@ -1,8 +1,12 @@
 "use client";
 
-import { Descendant, createEditor, Transforms } from "slate";
-import { Editable, ReactEditor, Slate, withReact } from "slate-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createEditor, Descendant, Transforms } from "slate";
+import { Slate, Editable, withReact, ReactEditor } from "slate-react";
+import { getDocument, GlobalWorkerOptions, version as pdfjsVersion } from "pdfjs-dist";
+
+// Required to use pdfjs-dist worker
+GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`;
 
 // Define Slate.js custom types
 type CustomElement = { type: "paragraph"; children: CustomText[] };
@@ -18,29 +22,65 @@ declare module "slate" {
 
 const RichTextEditorSec = () => {
   const editor = useMemo(() => withReact(createEditor()), []);
-
-  // Stores user-selected tags, starts empty
-  const [selectedTags, setSelectedTags] = useState<{ [key: string]: string }>(
-    {}
-  );
+  const [extractedText, setExtractedText] = useState("");
   const [value, setValue] = useState<Descendant[]>([
-    {
-      type: "paragraph",
-      children: [
-        {
-          text: `Apple Inc. has filed its 10-K report, detailing its financial performance for the year. The filing, dated February 1, 2025, provides insights into the company's revenue, net income, and dividends across all four quarters Central Index Key 0000320193. For Q1, Apple reported a revenue of $123.9 billion, followed by $115.3 billion in Q2, $120.2 billion in Q3, and $129.8 billion in Q4. Net income fluctuated throughout the year, with $28.7 billion in Q1, $25.3 billion in Q2, $26.9 billion in Q3, and $30.4 billion in Q4. Dividend payouts were consistent, starting at $1.88 in Q1, slightly decreasing to $1.67 in Q2, before recovering to $1.73 in Q3 and $2.01 in Q4.
- 
-Beyond financials, the company acknowledges several risk factors that could impact performance. These include global supply chain disruptions, component shortages, evolving trade regulations, and privacy laws. Additionally, currency exchange fluctuations and economic instability in key markets pose potential challenges to Apple's future financial stability.
- 
-For further details, the official SEC filing is available at `,
-        },
-        {
-          text: "View Filing",
-          url: "https://www.sec.gov/Archives/edgar/data/320193/000032019325000001/0000320193-25-000001-index.htm",
-        },
-      ],
-    },
+    { type: "paragraph", children: [{ text: "Upload a PDF to extract text" }] },
   ]);
+  const [selectedTags, setSelectedTags] = useState<{ [key: string]: string }>({});
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Extract text from PDF
+  const extractTextFromPDF = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const typedArray = new Uint8Array(arrayBuffer);
+const pdf = await getDocument({ data: typedArray }).promise;
+
+
+    let fullText = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item: any) => item.str).join(" ");
+      fullText += pageText + "\n";
+    }
+
+    return fullText;
+  };
+
+  const extractText = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+
+    try {
+      const text = await extractTextFromPDF(file);
+      setExtractedText(text);
+    } catch (error) {
+      console.error("Text extraction failed", error);
+      setExtractedText("Failed to extract text from PDF");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update editor when PDF text changes
+  useEffect(() => {
+    if (extractedText) {
+      const newValue: Descendant[] = [
+        {
+          type: "paragraph",
+          children: [{ text: extractedText }],
+        },
+      ];
+      setValue(newValue);
+      Transforms.select(editor, {
+        anchor: { path: [0, 0], offset: 0 },
+        focus: { path: [0, 0], offset: 0 },
+      });
+      editor.children = newValue;
+    }
+  }, [extractedText, editor]);
 
   const handleSelect = (placeholder: string) => {
     const { selection } = editor;
@@ -55,18 +95,24 @@ For further details, the official SEC filing is available at `,
 
   return (
     <div className="space-y-6">
-      {/* Main Two-column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Paragraph Editor */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
         <div className="space-y-4">
-          <div className="p-4 border rounded-md shadow-md bg-white">
-            <h2 className="text-lg font-semibold mb-4">Text Editor</h2>
-            <Slate
-              editor={editor as ReactEditor}
-              initialValue={value}
-              onChange={setValue}
-            >
-              <Editable className="border p-4 rounded-md min-h-[300px] w-full text-black bg-white" />
+          <div className="rounded-md  bg-white">
+            <div className="p-6 bg-white rounded-lg shadow-lg border border-gray-300">
+              <h2 className="text-xl font-bold text-gray-700 mb-4">Upload File (PDF)</h2>
+
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={extractText}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-md cursor-pointer bg-gray-50 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {isLoading && <p className="mt-2 text-blue-500">Extracting text...</p>}
+            </div>
+
+            <h2 className="text-lg font-semibold mb-4 mt-4">Text Editor</h2>
+            <Slate editor={editor} initialValue={value} onChange={setValue}>
+              <Editable className="border p-4 rounded-md min-h-[370px] w-full text-black bg-white" />
             </Slate>
           </div>
         </div>
@@ -131,213 +177,201 @@ For further details, the official SEC filing is available at `,
                   </button>
                 )}
               </p>
-
               <p className="mt-2">
                 <strong>Filing URL:</strong>{" "}
                 {selectedTags.FilingURL ? (
-                  <a
-                    href={selectedTags.FilingURL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-blue-500"
-                  >
-                    View Filing
-                  </a>
+                  selectedTags.FilingURL
                 ) : (
                   <button
                     onClick={() => handleSelect("FilingURL")}
                     className="cursor-pointer underline text-black"
                   >
-                    {"{{filing_url}}"}
+                    {"{{FilingURL}}"}
                   </button>
                 )}
               </p>
+             
             </div>
           </div>
-            {/* Financial Summary Table - Full width below */}
-      <div className="p-6 bg-white rounded-md shadow-md">
-        <h2 className="text-lg font-semibold mb-4">Financial Summary</h2>
-        <div className="overflow-x-auto">
-          <table className="border-collapse border border-gray-400 w-full table-fixed">
-            <thead>
-              <tr className="border border-gray-300 bg-gray-100">
-                <th className="w-1/5 p-3">Metric</th>
-                <th className="w-1/5 p-3">Q1</th>
-                <th className="w-1/5 p-3">Q2</th>
-                <th className="w-1/5 p-3">Q3</th>
-                <th className="w-1/5 p-3">Q4</th>
-              </tr>
-            </thead>
-            <tbody className="text-center">
-              {/* Revenue Row */}
-              <tr className="border border-gray-300">
-                <td className="p-3">Revenue</td>
-                <td className="p-3">
-                  {selectedTags.RevenueQ1 ? (
-                    selectedTags.RevenueQ1
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("RevenueQ1")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{RevenueQ1}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.RevenueQ2 ? (
-                    selectedTags.RevenueQ2
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("RevenueQ2")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{RevenueQ2}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.RevenueQ3 ? (
-                    selectedTags.RevenueQ3
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("RevenueQ3")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{RevenueQ3}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.RevenueQ4 ? (
-                    selectedTags.RevenueQ4
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("RevenueQ4")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{RevenueQ4}}"}
-                    </button>
-                  )}
-                </td>
-              </tr>
+          {/* Financial Summary Table - Full width below */}
+          <div className="p-6 bg-white rounded-md shadow-md">
+            <h2 className="text-lg font-semibold mb-4">Financial Summary</h2>
+            <div className="overflow-x-auto">
+              <table className="border-collapse border border-gray-400 w-full table-fixed">
+                <thead>
+                  <tr className="border border-gray-300 bg-gray-100">
+                    <th className="w-1/5 p-3">Metric</th>
+                    <th className="w-1/5 p-3">Q1</th>
+                    <th className="w-1/5 p-3">Q2</th>
+                    <th className="w-1/5 p-3">Q3</th>
+                    <th className="w-1/5 p-3">Q4</th>
+                  </tr>
+                </thead>
+                <tbody className="text-center">
+                  {/* Revenue Row */}
+                  <tr className="border border-gray-300">
+                    <td className="p-3">Revenue</td>
+                    <td className="p-3">
+                      {selectedTags.RevenueQ1 ? (
+                        selectedTags.RevenueQ1
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("RevenueQ1")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{RevenueQ1}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.RevenueQ2 ? (
+                        selectedTags.RevenueQ2
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("RevenueQ2")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{RevenueQ2}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.RevenueQ3 ? (
+                        selectedTags.RevenueQ3
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("RevenueQ3")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{RevenueQ3}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.RevenueQ4 ? (
+                        selectedTags.RevenueQ4
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("RevenueQ4")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{RevenueQ4}}"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
 
-              {/* Net Income Row */}
-              <tr className="border border-gray-300">
-                <td className="p-3">Net Income</td>
-                <td className="p-3">
-                  {selectedTags.IncomeQ1 ? (
-                    selectedTags.IncomeQ1
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("IncomeQ1")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{IncomeQ1}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.IncomeQ2 ? (
-                    selectedTags.IncomeQ2
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("IncomeQ2")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{IncomeQ2}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.IncomeQ3 ? (
-                    selectedTags.IncomeQ3
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("IncomeQ3")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{IncomeQ3}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.IncomeQ4 ? (
-                    selectedTags.IncomeQ4
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("IncomeQ4")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{IncomeQ4}}"}
-                    </button>
-                  )}
-                </td>
-              </tr>
+                  {/* Net Income Row */}
+                  <tr className="border border-gray-300">
+                    <td className="p-3">Net Income</td>
+                    <td className="p-3">
+                      {selectedTags.IncomeQ1 ? (
+                        selectedTags.IncomeQ1
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("IncomeQ1")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{IncomeQ1}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.IncomeQ2 ? (
+                        selectedTags.IncomeQ2
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("IncomeQ2")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{IncomeQ2}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.IncomeQ3 ? (
+                        selectedTags.IncomeQ3
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("IncomeQ3")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{IncomeQ3}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.IncomeQ4 ? (
+                        selectedTags.IncomeQ4
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("IncomeQ4")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{IncomeQ4}}"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
 
-              {/* Dividend Row */}
-              <tr className="border border-gray-300">
-                <td className="p-3">Dividend</td>
-                <td className="p-3">
-                  {selectedTags.DQ1 ? (
-                    selectedTags.DQ1
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("DQ1")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{DQ1}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.DQ2 ? (
-                    selectedTags.DQ2
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("DQ2")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{DQ2}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.DQ3 ? (
-                    selectedTags.DQ3
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("DQ3")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{DQ3}}"}
-                    </button>
-                  )}
-                </td>
-                <td className="p-3">
-                  {selectedTags.DQ4 ? (
-                    selectedTags.DQ4
-                  ) : (
-                    <button
-                      onClick={() => handleSelect("DQ4")}
-                      className="cursor-pointer underline bg-transparent border-none"
-                    >
-                      {"{{DQ4}}"}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  {/* Dividend Row */}
+                  <tr className="border border-gray-300">
+                    <td className="p-3">Dividend</td>
+                    <td className="p-3">
+                      {selectedTags.DQ1 ? (
+                        selectedTags.DQ1
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("DQ1")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{DQ1}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.DQ2 ? (
+                        selectedTags.DQ2
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("DQ2")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{DQ2}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.DQ3 ? (
+                        selectedTags.DQ3
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("DQ3")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{DQ3}}"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {selectedTags.DQ4 ? (
+                        selectedTags.DQ4
+                      ) : (
+                        <button
+                          onClick={() => handleSelect("DQ4")}
+                          className="cursor-pointer underline bg-transparent border-none"
+                        >
+                          {"{{DQ4}}"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
-        </div>
-        
-      </div>
-
-    
-
-
 
       {/* Risk Factors Section - Full width below */}
       <div className="p-4 bg-gray-100 rounded-md shadow-md">
