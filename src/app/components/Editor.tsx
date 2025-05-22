@@ -51,7 +51,7 @@ const RichTextEditor = () => {
       <div className="p-4 border rounded-md shadow-md bg-white min-h-[40vh] md:min-h-[400px]">
         <h2 className="text-lg font-semibold">Editing Area</h2>
         <Slate editor={editor as ReactEditor} initialValue={value} onChange={setValue}>
-          <Editable className="border p-4 rounded-md min-h-[300px] w-full" />
+          <Editable className="border p-4 rounded-md min-h-[300px] w-full text-black bg-white" />
         </Slate>
       </div>
     </div>
