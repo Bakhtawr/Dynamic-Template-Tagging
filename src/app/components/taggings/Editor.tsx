@@ -11,17 +11,6 @@ const TemplateEditor = () => {
   const [fileName, setFileName] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
   const [isIframeLoaded, setIsIframeLoaded] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("company");
-
-  
-  const tagCategories: Record<string, string[]> = {
-    company: ["companyName", "businessType"],
-    dates: ["FilingDate", "ExpirationDate"],
-    forms: ["FormType", "SubmissionType"],
-    financials: ["RevenueQ1", "NetIncomeQ1"],
-    risks: ["RiskFactors", "MarketVolatility"]
-  };
-  
 
   // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +67,7 @@ const TemplateEditor = () => {
     };
   }, []);
 
-  // Tag selection with placeholder
+  // Improved tag selection with better table handling
   const tagSelection = (placeholder: string) => {
     const iframe = iframeRef.current;
     if (!iframe || !selectedText) return;
@@ -89,17 +78,30 @@ const TemplateEditor = () => {
 
     try {
       const range = selection.getRangeAt(0);
+      const parentCell = range.startContainer.parentElement?.closest('td, th');
       
       // Create placeholder element
       const placeholderSpan = doc.createElement('span');
       placeholderSpan.className = 'placeholder bg-yellow-100 px-1 rounded';
       placeholderSpan.textContent = `{{${placeholder}}}`;
       placeholderSpan.setAttribute('data-placeholder', placeholder);
-      
-      // Replace selection with placeholder
-      range.deleteContents();
-      range.insertNode(placeholderSpan);
-      
+
+      // Special handling for table cells
+      if (parentCell) {
+        // Preserve any existing content outside the selection
+        const cellContent = parentCell.innerHTML;
+        const selectedContent = range.toString();
+        const newContent = cellContent.replace(
+          selectedContent, 
+          placeholderSpan.outerHTML
+        );
+        parentCell.innerHTML = newContent;
+      } else {
+        // Regular non-table content handling
+        range.deleteContents();
+        range.insertNode(placeholderSpan);
+      }
+
       // Update HTML content
       const newHtml = doc.documentElement.outerHTML;
       setHtmlContent(newHtml);
@@ -157,45 +159,40 @@ const TemplateEditor = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Tagging Panel - Now wider */}
+          {/* Tagging Panel */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
-              {/* Tag Categories */}
-            {/* Tagging Panel */}
-<div className="space-y-4">
-  <div className="p-4 bg-white rounded-lg shadow">
-    <h2 className="text-lg font-semibold mb-3">Tag Variables</h2>
-    <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-      {[
-        "companyName", "FilingDate", "FormType", "CIK", "FilingURL",
-        "RiskFactors", "RevenueQ1", "RevenueQ2", "RevenueQ3", "RevenueQ4",
-        "NetIncomeQ1", "NetIncomeQ2", "NetIncomeQ3", "NetIncomeQ4",
-        "DividendQ1", "DividendQ2", "DividendQ3", "DividendQ4"
-      ].map((tag) => (
-        <button
-          key={tag}
-          onClick={() => tagSelection(tag)}
-          disabled={!selectedText || !isIframeLoaded}
-          className={`w-full px-4 py-2 rounded-lg text-left transition-colors ${
-            selectedText && isIframeLoaded
-              ? "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-              : "bg-gray-50 text-gray-400 border border-gray-200"
-          }`}
-        >
-          <span className="font-mono">{`{{${tag}}}`}</span>
-          <span className="block text-xs text-gray-500 mt-1">
-            {tag.includes("Revenue") ? "Financial data" : 
-             tag.includes("Date") ? "Date field" : 
-             tag.includes("Name") ? "Company identifier" : "Field"}
-          </span>
-        </button>
-      ))}
-    </div>
-  </div>
-</div>
+              {/* Tag Variables */}
+              <div className="p-4">
+                <h2 className="text-lg font-semibold text-gray-800 mb-3">Tag Variables</h2>
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                  {[
+                    "companyName", "FilingDate", "FormType", "CIK", "FilingURL",
+                    "RiskFactors", "RevenueQ1", "RevenueQ2", "RevenueQ3", "RevenueQ4",
+                    "NetIncomeQ1", "NetIncomeQ2", "NetIncomeQ3", "NetIncomeQ4",
+                    "DividendQ1", "DividendQ2", "DividendQ3", "DividendQ4"
+                  ].map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => tagSelection(tag)}
+                      disabled={!selectedText || !isIframeLoaded}
+                      className={`w-full px-4 py-2 rounded-lg text-left transition-colors ${
+                        selectedText && isIframeLoaded
+                          ? "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                          : "bg-gray-50 text-gray-400 border border-gray-200"
+                      }`}
+                    >
+                      <span className="font-mono">{`{{${tag}}}`}</span>
+                      <span className="block text-xs text-gray-500 mt-1">
+                        {tag.includes("Revenue") ? "Financial data" : 
+                         tag.includes("Date") ? "Date field" : 
+                         tag.includes("Name") ? "Company identifier" : "Field"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-
-           
               {/* Selected Text Preview */}
               {selectedText && (
                 <div className="p-4 border-t border-gray-100 bg-blue-50">
@@ -237,7 +234,7 @@ const TemplateEditor = () => {
             </div>
           </div>
 
-          {/* Preview Area - Now takes 3/4 width */}
+          {/* Preview Area */}
           <div className="lg:col-span-3 space-y-6">
             {/* Template Preview */}
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -278,7 +275,7 @@ const TemplateEditor = () => {
                 </button>
               </div>
               <div className="p-4">
-                <div className="bg-gray-800 rounded-lg p-4 h-100 overflow-auto">
+                <div className="bg-gray-800 rounded-lg p-4 h-[600px] overflow-auto">
                   <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
                     {outputHtml || (
                       <div className="text-center text-gray-500 py-16">
