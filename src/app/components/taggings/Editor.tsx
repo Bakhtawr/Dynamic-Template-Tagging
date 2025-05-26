@@ -47,8 +47,17 @@ const TemplateEditor = () => {
           setSelectedText("");
           return;
         }
-
+      
+        const range = selection.getRangeAt(0);
+        const parentCell = range.startContainer?.parentElement?.closest("td, th");
+      
         const selected = selection.toString().trim();
+      
+        if (!selected || (parentCell && !parentCell.innerHTML.includes(selected))) {
+          console.warn("Selection content mismatch, retrying...");
+          return;
+        }
+        
         setSelectedText(selected);
       };
 
@@ -88,7 +97,6 @@ const TemplateEditor = () => {
 
       // Special handling for table cells
       if (parentCell) {
-        // Preserve any existing content outside the selection
         const cellContent = parentCell.innerHTML;
         const selectedContent = range.toString();
         const newContent = cellContent.replace(
@@ -97,7 +105,6 @@ const TemplateEditor = () => {
         );
         parentCell.innerHTML = newContent;
       } else {
-        // Regular non-table content handling
         range.deleteContents();
         range.insertNode(placeholderSpan);
       }
@@ -117,6 +124,30 @@ const TemplateEditor = () => {
     } catch (error) {
       console.error("Error tagging selection:", error);
     }
+  };
+
+  // Download HTML file
+  const downloadHtml = () => {
+    if (!htmlContent) return;
+
+    // Create a blob with the HTML content
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary anchor element
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Use the original filename if available, otherwise default to 'template.html'
+    a.download = fileName || 'template.html';
+    
+    // Trigger the download
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -260,18 +291,14 @@ const TemplateEditor = () => {
               <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-800">HTML Output</h2>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(outputHtml);
-                    alert("HTML copied to clipboard!");
-                  }}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 flex items-center gap-2"
-                  disabled={!outputHtml}
+                  onClick={downloadHtml}
+                  disabled={!htmlContent}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
-                  Copy HTML
+                  Download HTML
                 </button>
               </div>
               <div className="p-4">
